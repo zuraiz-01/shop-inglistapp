@@ -191,7 +191,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final provider = context.read<ShoppingListsProvider>();
     provider.selectList(list);
     provider.listenToItems(list.id);
-    Navigator.pushNamed(context, AppRoutes.listDetail);
+    Navigator.pushNamed(context, AppRoutes.listDetail, arguments: list);
   }
 
   Future<void> _logout() async {

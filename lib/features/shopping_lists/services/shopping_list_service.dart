@@ -188,6 +188,7 @@ class ShoppingListService {
         }
 
         transaction.set(itemRef, {
+          'listId': listId,
           'name': name.trim(),
           'quantity': quantity,
           'unit': unit.trim(),
