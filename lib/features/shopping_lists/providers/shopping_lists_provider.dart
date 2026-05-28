@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../auth/models/user_model.dart';
@@ -390,7 +391,26 @@ class ShoppingListsProvider extends ChangeNotifier {
       return error.message;
     }
 
+    if (error is FirebaseException) {
+      return _firestoreErrorMessage(error);
+    }
+
     return 'Something went wrong. Please try again.';
+  }
+
+  String _firestoreErrorMessage(FirebaseException error) {
+    switch (error.code) {
+      case 'permission-denied':
+        return 'You do not have permission to access this shopping list.';
+      case 'failed-precondition':
+        return 'Cloud Firestore needs an index or setup change for this request.';
+      case 'unavailable':
+        return 'Cloud Firestore is unavailable. Check your internet connection.';
+      case 'not-found':
+        return 'The requested shopping list was not found.';
+      default:
+        return error.message ?? 'Shopping list request failed.';
+    }
   }
 
   void _safeNotifyListeners() {

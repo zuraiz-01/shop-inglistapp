@@ -67,7 +67,9 @@ class ShoppingListService {
     try {
       final snapshot = await _userListsQuery(uid).get();
 
-      return snapshot.docs.map(ShoppingListModel.fromFirestore).toList();
+      return _sortListsByUpdatedAt(
+        snapshot.docs.map(ShoppingListModel.fromFirestore).toList(),
+      );
     } on FirebaseException catch (error) {
       throw ShoppingListServiceException(_firestoreErrorMessage(error));
     } catch (_) {
@@ -80,7 +82,9 @@ class ShoppingListService {
   Stream<List<ShoppingListModel>> streamUserLists(String uid) async* {
     try {
       yield* _userListsQuery(uid).snapshots().map((snapshot) {
-        return snapshot.docs.map(ShoppingListModel.fromFirestore).toList();
+        return _sortListsByUpdatedAt(
+          snapshot.docs.map(ShoppingListModel.fromFirestore).toList(),
+        );
       });
     } on FirebaseException catch (error) {
       throw ShoppingListServiceException(_firestoreErrorMessage(error));
@@ -658,9 +662,11 @@ class ShoppingListService {
   }
 
   Query<Map<String, dynamic>> _userListsQuery(String uid) {
-    return _listsCollection
-        .where('members', arrayContains: uid)
-        .orderBy('updatedAt', descending: true);
+    return _listsCollection.where('members', arrayContains: uid);
+  }
+
+  List<ShoppingListModel> _sortListsByUpdatedAt(List<ShoppingListModel> lists) {
+    return [...lists]..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
   }
 
   CollectionReference<Map<String, dynamic>> _itemsCollection(String listId) {
