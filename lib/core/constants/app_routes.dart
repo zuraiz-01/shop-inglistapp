@@ -8,5 +8,6 @@ class AppRoutes {
   static const createList = '/lists/create';
   static const listDetail = '/lists/detail';
   static const shareList = '/lists/share';
+  static const members = '/lists/members';
   static const profile = '/profile';
 }

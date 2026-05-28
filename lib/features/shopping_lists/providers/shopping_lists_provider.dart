@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../../auth/models/user_model.dart';
+import '../models/list_member_model.dart';
 import '../models/shopping_item_model.dart';
 import '../models/shopping_list_model.dart';
 import '../services/shopping_list_service.dart';
@@ -20,6 +21,7 @@ class ShoppingListsProvider extends ChangeNotifier {
   List<ShoppingListModel> _lists = const [];
   ShoppingListModel? _selectedList;
   List<ShoppingItemModel> _items = const [];
+  List<ListMemberModel> _members = const [];
   bool _isLoading = false;
   String? _errorMessage;
   bool _isDisposed = false;
@@ -27,6 +29,7 @@ class ShoppingListsProvider extends ChangeNotifier {
   List<ShoppingListModel> get lists => List.unmodifiable(_lists);
   ShoppingListModel? get selectedList => _selectedList;
   List<ShoppingItemModel> get items => List.unmodifiable(_items);
+  List<ListMemberModel> get members => List.unmodifiable(_members);
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
@@ -44,6 +47,7 @@ class ShoppingListsProvider extends ChangeNotifier {
       _lists = const [];
       _selectedList = null;
       _items = const [];
+      _members = const [];
       _safeNotifyListeners();
     }
   }
@@ -226,6 +230,60 @@ class ShoppingListsProvider extends ChangeNotifier {
         _items = const [];
         await _itemsSubscription?.cancel();
       }
+    });
+  }
+
+  Future<void> loadMembers(ShoppingListModel list) async {
+    await _runAction(() async {
+      _members = await _shoppingListService.getListMembers(list);
+    });
+  }
+
+  Future<void> changeMemberPermission({
+    required String listId,
+    required String memberId,
+    required String role,
+  }) async {
+    await _runAction(() async {
+      final user = _requireCurrentUser();
+
+      await _shoppingListService.updateMemberRole(
+        listId: listId,
+        currentUserId: user.uid,
+        memberId: memberId,
+        role: role,
+      );
+
+      _members = _members.map((member) {
+        if (member.uid != memberId) {
+          return member;
+        }
+
+        return ListMemberModel(
+          uid: member.uid,
+          name: member.name,
+          email: member.email,
+          photoUrl: member.photoUrl,
+          role: role,
+        );
+      }).toList();
+    });
+  }
+
+  Future<void> removeMember({
+    required String listId,
+    required String memberId,
+  }) async {
+    await _runAction(() async {
+      final user = _requireCurrentUser();
+
+      await _shoppingListService.removeMember(
+        listId: listId,
+        currentUserId: user.uid,
+        memberId: memberId,
+      );
+
+      _members = _members.where((member) => member.uid != memberId).toList();
     });
   }
 

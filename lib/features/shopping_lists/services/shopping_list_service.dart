@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../models/list_member_model.dart';
 import '../models/shopping_item_model.dart';
 import '../models/shopping_list_model.dart';
 
@@ -201,6 +202,120 @@ class ShoppingListService {
     }
   }
 
+  Future<List<ListMemberModel>> getListMembers(ShoppingListModel list) async {
+    try {
+      final members = <ListMemberModel>[];
+
+      for (final uid in list.members) {
+        final userDoc = await _usersCollection.doc(uid).get();
+        final userData = userDoc.data() ?? <String, dynamic>{};
+        final role = list.memberRoles[uid] ?? 'viewer';
+
+        members.add(ListMemberModel.fromMap(userData, uid: uid, role: role));
+      }
+
+      members.sort((a, b) {
+        if (a.isOwner && !b.isOwner) {
+          return -1;
+        }
+        if (!a.isOwner && b.isOwner) {
+          return 1;
+        }
+        return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      });
+
+      return members;
+    } on FirebaseException catch (error) {
+      throw ShoppingListServiceException(_firestoreErrorMessage(error));
+    } catch (_) {
+      throw const ShoppingListServiceException('Could not load list members.');
+    }
+  }
+
+  Future<void> updateMemberRole({
+    required String listId,
+    required String currentUserId,
+    required String memberId,
+    required String role,
+  }) async {
+    try {
+      if (!['viewer', 'editor'].contains(role)) {
+        throw const ShoppingListServiceException(
+          'Please select a valid permission.',
+        );
+      }
+
+      final listRef = _listsCollection.doc(listId);
+
+      await _firestore.runTransaction((transaction) async {
+        final listSnapshot = await transaction.get(listRef);
+        if (!listSnapshot.exists) {
+          throw const ShoppingListServiceException(
+            'Shopping list was not found.',
+          );
+        }
+
+        final list = ShoppingListModel.fromFirestore(listSnapshot);
+        _assertOwnerCanManageMember(
+          list: list,
+          currentUserId: currentUserId,
+          memberId: memberId,
+        );
+
+        transaction.update(listRef, {
+          'memberRoles.$memberId': role,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      });
+    } on ShoppingListServiceException {
+      rethrow;
+    } on FirebaseException catch (error) {
+      throw ShoppingListServiceException(_firestoreErrorMessage(error));
+    } catch (_) {
+      throw const ShoppingListServiceException(
+        'Could not update member permission.',
+      );
+    }
+  }
+
+  Future<void> removeMember({
+    required String listId,
+    required String currentUserId,
+    required String memberId,
+  }) async {
+    try {
+      final listRef = _listsCollection.doc(listId);
+
+      await _firestore.runTransaction((transaction) async {
+        final listSnapshot = await transaction.get(listRef);
+        if (!listSnapshot.exists) {
+          throw const ShoppingListServiceException(
+            'Shopping list was not found.',
+          );
+        }
+
+        final list = ShoppingListModel.fromFirestore(listSnapshot);
+        _assertOwnerCanManageMember(
+          list: list,
+          currentUserId: currentUserId,
+          memberId: memberId,
+        );
+
+        transaction.update(listRef, {
+          'members': FieldValue.arrayRemove([memberId]),
+          'memberRoles.$memberId': FieldValue.delete(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      });
+    } on ShoppingListServiceException {
+      rethrow;
+    } on FirebaseException catch (error) {
+      throw ShoppingListServiceException(_firestoreErrorMessage(error));
+    } catch (_) {
+      throw const ShoppingListServiceException('Could not remove this member.');
+    }
+  }
+
   Future<void> deleteShoppingList({
     required String listId,
     required String currentUserId,
@@ -236,6 +351,30 @@ class ShoppingListService {
     } catch (_) {
       throw const ShoppingListServiceException(
         'Could not delete the shopping list.',
+      );
+    }
+  }
+
+  void _assertOwnerCanManageMember({
+    required ShoppingListModel list,
+    required String currentUserId,
+    required String memberId,
+  }) {
+    if (list.ownerId != currentUserId) {
+      throw const ShoppingListServiceException(
+        'Only the list owner can manage members.',
+      );
+    }
+
+    if (memberId == list.ownerId) {
+      throw const ShoppingListServiceException(
+        'The owner cannot be removed or changed.',
+      );
+    }
+
+    if (!list.members.contains(memberId)) {
+      throw const ShoppingListServiceException(
+        'This user is not a member of this list.',
       );
     }
   }

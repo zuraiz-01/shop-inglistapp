@@ -84,7 +84,11 @@ class _ListDetailScreenState extends State<ListDetailScreen> {
               IconButton(
                 onPressed: list == null
                     ? null
-                    : () => _showComingSoon('Members'),
+                    : () => Navigator.pushNamed(
+                        context,
+                        AppRoutes.members,
+                        arguments: list,
+                      ),
                 icon: const Icon(Icons.group_outlined),
                 tooltip: 'Members',
               ),
@@ -246,10 +250,6 @@ class _ListDetailScreenState extends State<ListDetailScreen> {
     }
 
     Navigator.pop(context);
-  }
-
-  void _showComingSoon(String label) {
-    _showSnackBar('$label will be added next.');
   }
 
   void _showSnackBar(String message) {
