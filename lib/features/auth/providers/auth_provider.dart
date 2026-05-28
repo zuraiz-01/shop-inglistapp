@@ -70,6 +70,16 @@ class AuthProvider extends ChangeNotifier {
     });
   }
 
+  void updateCurrentUserName(String name) {
+    final user = _currentUser;
+    if (user == null) {
+      return;
+    }
+
+    _currentUser = user.copyWith(name: name);
+    _safeNotifyListeners();
+  }
+
   Future<void> resetPassword(String email) async {
     await _runAuthAction(() async {
       await _authService!.resetPassword(email);

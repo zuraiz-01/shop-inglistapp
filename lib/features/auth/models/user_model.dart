@@ -45,6 +45,22 @@ class UserModel {
     };
   }
 
+  UserModel copyWith({
+    String? uid,
+    String? name,
+    String? email,
+    String? photoUrl,
+    DateTime? createdAt,
+  }) {
+    return UserModel(
+      uid: uid ?? this.uid,
+      name: name ?? this.name,
+      email: email ?? this.email,
+      photoUrl: photoUrl ?? this.photoUrl,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
   static DateTime _dateTimeFromValue(Object? value) {
     if (value is Timestamp) {
       return value.toDate();

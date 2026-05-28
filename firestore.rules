@@ -18,6 +18,10 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid in listData(listId).members;
     }
 
+    function isListMemberFromData(list) {
+      return isSignedIn() && request.auth.uid in list.members;
+    }
+
     function isOwner(list, uid) {
       return uid in list.members && list.memberRoles[uid] == 'owner';
     }
@@ -83,7 +87,7 @@ service cloud.firestore {
     }
 
     match /shoppingLists/{listId} {
-      allow read: if isListMember(listId);
+      allow read: if isListMemberFromData(resource.data);
 
       allow create: if isSignedIn()
         && request.resource.data.ownerId == request.auth.uid
@@ -95,7 +99,7 @@ service cloud.firestore {
           isSignedIn()
           && canManageMembers(resource.data, request.auth.uid)
           && keepsListOwnerStable()
-        && hasValidMemberData(request.resource.data)
+          && hasValidMemberData(request.resource.data)
         )
         || (
           isSignedIn()
