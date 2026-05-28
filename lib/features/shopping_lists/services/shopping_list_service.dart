@@ -475,7 +475,9 @@ class ShoppingListService {
       case 'not-found':
         return 'The requested shopping list was not found.';
       case 'unavailable':
-        return 'Service is temporarily unavailable. Please try again.';
+        return 'Cloud Firestore is unavailable. Check your internet connection and make sure Firestore Database is enabled in Firebase Console.';
+      case 'failed-precondition':
+        return 'Cloud Firestore is not ready for this request. Check your Firebase Console Firestore setup.';
       case 'cancelled':
         return 'The request was cancelled. Please try again.';
       default:

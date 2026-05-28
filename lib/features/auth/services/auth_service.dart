@@ -73,12 +73,7 @@ class AuthService {
         throw const AuthServiceException('Could not sign you in.');
       }
 
-      final appUser = await getCurrentUser();
-      if (appUser == null) {
-        throw const AuthServiceException('User profile was not found.');
-      }
-
-      return appUser;
+      return await _getUserProfileOrFallback(user);
     } on FirebaseAuthException catch (error) {
       throw AuthServiceException(_authErrorMessage(error));
     } on FirebaseException catch (error) {
@@ -121,12 +116,7 @@ class AuthService {
         return null;
       }
 
-      final doc = await _usersCollection.doc(user.uid).get();
-      if (!doc.exists) {
-        return null;
-      }
-
-      return UserModel.fromFirestore(doc);
+      return await _getUserProfileOrFallback(user);
     } on FirebaseException catch (error) {
       throw AuthServiceException(_firestoreErrorMessage(error));
     } on AuthServiceException {
@@ -148,6 +138,50 @@ class AuthService {
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
+  }
+
+  Future<UserModel> _getUserProfileOrFallback(User user) async {
+    try {
+      final doc = await _usersCollection.doc(user.uid).get();
+
+      if (doc.exists) {
+        return UserModel.fromFirestore(doc);
+      }
+
+      await _createUserDocument(user: user, name: _fallbackNameForUser(user));
+
+      return _modelFromFirebaseUser(user);
+    } on FirebaseException catch (error) {
+      if (error.code == 'unavailable') {
+        return _modelFromFirebaseUser(user);
+      }
+
+      rethrow;
+    }
+  }
+
+  UserModel _modelFromFirebaseUser(User user) {
+    return UserModel(
+      uid: user.uid,
+      name: _fallbackNameForUser(user),
+      email: user.email ?? '',
+      photoUrl: user.photoURL,
+      createdAt: user.metadata.creationTime ?? DateTime.now(),
+    );
+  }
+
+  String _fallbackNameForUser(User user) {
+    final displayName = user.displayName?.trim();
+    if (displayName != null && displayName.isNotEmpty) {
+      return displayName;
+    }
+
+    final email = user.email?.trim();
+    if (email != null && email.isNotEmpty) {
+      return email.split('@').first;
+    }
+
+    return 'User';
   }
 
   Future<void> _deleteCurrentUserIfPossible() async {
@@ -198,7 +232,9 @@ class AuthService {
       case 'permission-denied':
         return 'You do not have permission to access this data.';
       case 'unavailable':
-        return 'Service is temporarily unavailable. Please try again.';
+        return 'Cloud Firestore is unavailable. Check your internet connection and make sure Firestore Database is enabled in Firebase Console.';
+      case 'failed-precondition':
+        return 'Cloud Firestore is not ready for this request. Check your Firebase Console Firestore setup.';
       case 'not-found':
         return 'The requested profile was not found.';
       default:
