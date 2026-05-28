@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../../core/constants/app_routes.dart';
 import '../providers/auth_provider.dart';
+import '../widgets/auth_shell.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -29,145 +30,107 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Form(
-                key: _formKey,
-                child: Consumer<AuthProvider>(
-                  builder: (context, authProvider, _) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: Container(
-                            width: 64,
-                            height: 64,
-                            decoration: BoxDecoration(
-                              color: colorScheme.primaryContainer,
-                              borderRadius: BorderRadius.circular(18),
-                            ),
-                            child: Icon(
-                              Icons.shopping_basket_outlined,
-                              size: 34,
-                              color: colorScheme.onPrimaryContainer,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 28),
-                        Text(
-                          'Welcome back',
-                          style: Theme.of(context).textTheme.headlineMedium
-                              ?.copyWith(fontWeight: FontWeight.w700),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Sign in to manage and share your shopping lists.',
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(color: colorScheme.onSurfaceVariant),
-                        ),
-                        const SizedBox(height: 32),
-                        TextFormField(
-                          controller: _emailController,
-                          enabled: !authProvider.isLoading,
-                          keyboardType: TextInputType.emailAddress,
-                          textInputAction: TextInputAction.next,
-                          autofillHints: const [AutofillHints.email],
-                          decoration: const InputDecoration(
-                            labelText: 'Email',
-                            prefixIcon: Icon(Icons.mail_outline),
-                          ),
-                          validator: _validateEmail,
-                        ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _passwordController,
-                          enabled: !authProvider.isLoading,
-                          obscureText: _obscurePassword,
-                          textInputAction: TextInputAction.done,
-                          autofillHints: const [AutofillHints.password],
-                          decoration: InputDecoration(
-                            labelText: 'Password',
-                            prefixIcon: const Icon(Icons.lock_outline),
-                            suffixIcon: IconButton(
-                              onPressed: authProvider.isLoading
-                                  ? null
-                                  : () {
-                                      setState(() {
-                                        _obscurePassword = !_obscurePassword;
-                                      });
-                                    },
-                              icon: Icon(
-                                _obscurePassword
-                                    ? Icons.visibility_outlined
-                                    : Icons.visibility_off_outlined,
-                              ),
-                              tooltip: _obscurePassword
-                                  ? 'Show password'
-                                  : 'Hide password',
-                            ),
-                          ),
-                          validator: _validatePassword,
-                          onFieldSubmitted: (_) => _submitLogin(authProvider),
-                        ),
-                        const SizedBox(height: 8),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton(
-                            onPressed: authProvider.isLoading
-                                ? null
-                                : () => _resetPassword(authProvider),
-                            child: const Text('Forgot password?'),
-                          ),
-                        ),
-                        if (authProvider.errorMessage != null) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            authProvider.errorMessage!,
-                            style: TextStyle(color: colorScheme.error),
-                          ),
-                        ],
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: authProvider.isLoading
-                              ? null
-                              : () => _submitLogin(authProvider),
-                          child: authProvider.isLoading
-                              ? const SizedBox(
-                                  width: 22,
-                                  height: 22,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.5,
-                                  ),
-                                )
-                              : const Text('Login'),
-                        ),
-                        const SizedBox(height: 16),
-                        OutlinedButton(
-                          onPressed: authProvider.isLoading
-                              ? null
-                              : () {
-                                  authProvider.clearError();
-                                  Navigator.pushNamed(
-                                    context,
-                                    AppRoutes.signup,
-                                  );
-                                },
-                          child: const Text('Create account'),
-                        ),
-                      ],
-                    );
-                  },
+    return Form(
+      key: _formKey,
+      child: Consumer<AuthProvider>(
+        builder: (context, authProvider, _) {
+          return AuthShell(
+            title: 'Welcome back',
+            subtitle: 'Sign in to manage and share\nyour shopping lists.',
+            children: [
+              TextFormField(
+                controller: _emailController,
+                enabled: !authProvider.isLoading,
+                keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.next,
+                autofillHints: const [AutofillHints.email],
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  prefixIcon: Icon(Icons.mail_outline),
+                ),
+                validator: _validateEmail,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _passwordController,
+                enabled: !authProvider.isLoading,
+                obscureText: _obscurePassword,
+                textInputAction: TextInputAction.done,
+                autofillHints: const [AutofillHints.password],
+                decoration: InputDecoration(
+                  labelText: 'Password',
+                  prefixIcon: const Icon(Icons.lock_outline),
+                  suffixIcon: IconButton(
+                    onPressed: authProvider.isLoading
+                        ? null
+                        : () {
+                            setState(() {
+                              _obscurePassword = !_obscurePassword;
+                            });
+                          },
+                    icon: Icon(
+                      _obscurePassword
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
+                    ),
+                    tooltip: _obscurePassword
+                        ? 'Show password'
+                        : 'Hide password',
+                  ),
+                ),
+                validator: _validatePassword,
+                onFieldSubmitted: (_) => _submitLogin(authProvider),
+              ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: authProvider.isLoading
+                      ? null
+                      : () => _resetPassword(authProvider),
+                  child: const Text('Forgot password?'),
                 ),
               ),
-            ),
-          ),
-        ),
+              if (authProvider.errorMessage != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  authProvider.errorMessage!,
+                  style: TextStyle(color: colorScheme.error),
+                ),
+              ],
+              const SizedBox(height: 18),
+              ElevatedButton.icon(
+                onPressed: authProvider.isLoading
+                    ? null
+                    : () => _submitLogin(authProvider),
+                iconAlignment: IconAlignment.end,
+                icon: authProvider.isLoading
+                    ? const SizedBox.shrink()
+                    : const Icon(Icons.arrow_forward),
+                label: authProvider.isLoading
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2.5),
+                      )
+                    : const Text('Login'),
+              ),
+              const SizedBox(height: 18),
+              const AuthDivider(),
+              const SizedBox(height: 18),
+              OutlinedButton.icon(
+                onPressed: authProvider.isLoading
+                    ? null
+                    : () {
+                        authProvider.clearError();
+                        Navigator.pushNamed(context, AppRoutes.signup);
+                      },
+                icon: const Icon(Icons.person_add_alt_1_outlined),
+                label: const Text('Create account'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
