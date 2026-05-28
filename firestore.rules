@@ -1,0 +1,87 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isUser(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function listData(listId) {
+      return get(/databases/$(database)/documents/shoppingLists/$(listId)).data;
+    }
+
+    function isListMember(listId) {
+      return isSignedIn() && request.auth.uid in listData(listId).members;
+    }
+
+    function listRoleFromData(data) {
+      return data.memberRoles[request.auth.uid];
+    }
+
+    function isOwnerFromData(data) {
+      return isSignedIn() && listRoleFromData(data) == 'owner';
+    }
+
+    function canEditFromData(data) {
+      return isSignedIn() && listRoleFromData(data) in ['owner', 'editor'];
+    }
+
+    function canEditList(listId) {
+      return canEditFromData(listData(listId));
+    }
+
+    function keepsListOwnerStable() {
+      return request.resource.data.ownerId == resource.data.ownerId
+        && request.resource.data.ownerName == resource.data.ownerName;
+    }
+
+    function onlyUpdatesListContentAndCounts() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'title',
+        'description',
+        'totalItems',
+        'completedItems',
+        'updatedAt',
+      ]);
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn();
+
+      allow create: if isUser(userId)
+        && request.resource.data.uid == userId;
+
+      allow update: if isUser(userId)
+        && request.resource.data.uid == resource.data.uid;
+
+      allow delete: if false;
+    }
+
+    match /shoppingLists/{listId} {
+      allow read: if isListMember(listId);
+
+      allow create: if isSignedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.auth.uid in request.resource.data.members
+        && request.resource.data.memberRoles[request.auth.uid] == 'owner';
+
+      allow update: if isOwnerFromData(resource.data)
+        || (
+          canEditFromData(resource.data)
+          && keepsListOwnerStable()
+          && onlyUpdatesListContentAndCounts()
+        );
+
+      allow delete: if isOwnerFromData(resource.data);
+
+      match /items/{itemId} {
+        allow read: if isListMember(listId);
+        allow create, update, delete: if canEditList(listId);
+      }
+    }
+  }
+}

@@ -13,6 +13,10 @@ class ShoppingListService {
     return _firestore.collection('shoppingLists');
   }
 
+  CollectionReference<Map<String, dynamic>> get _usersCollection {
+    return _firestore.collection('users');
+  }
+
   Future<ShoppingListModel> createShoppingList({
     required String title,
     required String ownerId,
@@ -120,6 +124,79 @@ class ShoppingListService {
     } catch (_) {
       throw const ShoppingListServiceException(
         'Could not update the shopping list.',
+      );
+    }
+  }
+
+  Future<void> shareShoppingListByEmail({
+    required String listId,
+    required String currentUserId,
+    required String email,
+    required String permission,
+  }) async {
+    try {
+      if (!['viewer', 'editor'].contains(permission)) {
+        throw const ShoppingListServiceException(
+          'Please select a valid permission.',
+        );
+      }
+
+      final targetUser = await _findUserByEmail(email);
+      if (targetUser == null) {
+        throw const ShoppingListServiceException(
+          'No user found with this email',
+        );
+      }
+
+      final targetUid = targetUser['uid'] as String? ?? '';
+      if (targetUid.isEmpty) {
+        throw const ShoppingListServiceException(
+          'No user found with this email',
+        );
+      }
+
+      if (targetUid == currentUserId) {
+        throw const ShoppingListServiceException(
+          'You cannot add yourself to your own list.',
+        );
+      }
+
+      final listRef = _listsCollection.doc(listId);
+
+      await _firestore.runTransaction((transaction) async {
+        final listSnapshot = await transaction.get(listRef);
+        if (!listSnapshot.exists) {
+          throw const ShoppingListServiceException(
+            'Shopping list was not found.',
+          );
+        }
+
+        final list = ShoppingListModel.fromFirestore(listSnapshot);
+        if (list.ownerId != currentUserId) {
+          throw const ShoppingListServiceException(
+            'Only the list owner can share this shopping list.',
+          );
+        }
+
+        if (list.members.contains(targetUid)) {
+          throw const ShoppingListServiceException(
+            'This user is already a member of this list.',
+          );
+        }
+
+        transaction.update(listRef, {
+          'members': FieldValue.arrayUnion([targetUid]),
+          'memberRoles.$targetUid': permission,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      });
+    } on ShoppingListServiceException {
+      rethrow;
+    } on FirebaseException catch (error) {
+      throw ShoppingListServiceException(_firestoreErrorMessage(error));
+    } catch (_) {
+      throw const ShoppingListServiceException(
+        'Could not share this shopping list.',
       );
     }
   }
@@ -424,6 +501,37 @@ class ShoppingListService {
 
   CollectionReference<Map<String, dynamic>> _itemsCollection(String listId) {
     return _listsCollection.doc(listId).collection('items');
+  }
+
+  Future<Map<String, dynamic>?> _findUserByEmail(String email) async {
+    final trimmedEmail = email.trim();
+    final normalizedEmail = trimmedEmail.toLowerCase();
+
+    var snapshot = await _usersCollection
+        .where('emailLower', isEqualTo: normalizedEmail)
+        .limit(1)
+        .get();
+
+    if (snapshot.docs.isEmpty) {
+      snapshot = await _usersCollection
+          .where('email', isEqualTo: trimmedEmail)
+          .limit(1)
+          .get();
+    }
+
+    if (snapshot.docs.isEmpty && trimmedEmail != normalizedEmail) {
+      snapshot = await _usersCollection
+          .where('email', isEqualTo: normalizedEmail)
+          .limit(1)
+          .get();
+    }
+
+    if (snapshot.docs.isEmpty) {
+      return null;
+    }
+
+    final doc = snapshot.docs.first;
+    return {...doc.data(), 'uid': doc.data()['uid'] as String? ?? doc.id};
   }
 
   Future<void> _commitDeleteBatches(

@@ -134,6 +134,7 @@ class AuthService {
       'uid': user.uid,
       'name': name,
       'email': user.email,
+      'emailLower': user.email?.toLowerCase(),
       'photoUrl': user.photoURL,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),

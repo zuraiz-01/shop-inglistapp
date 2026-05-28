@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/constants/app_routes.dart';
 import '../models/shopping_item_model.dart';
 import '../models/shopping_list_model.dart';
 import '../providers/shopping_lists_provider.dart';
@@ -72,7 +73,11 @@ class _ListDetailScreenState extends State<ListDetailScreen> {
               IconButton(
                 onPressed: list == null
                     ? null
-                    : () => _showComingSoon('Share list'),
+                    : () => Navigator.pushNamed(
+                        context,
+                        AppRoutes.shareList,
+                        arguments: list,
+                      ),
                 icon: const Icon(Icons.ios_share_outlined),
                 tooltip: 'Share list',
               ),

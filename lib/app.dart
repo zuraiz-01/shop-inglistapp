@@ -13,6 +13,7 @@ import 'features/shopping_lists/providers/shopping_lists_provider.dart';
 import 'features/shopping_lists/screens/create_list_screen.dart';
 import 'features/shopping_lists/screens/home_screen.dart';
 import 'features/shopping_lists/screens/list_detail_screen.dart';
+import 'features/shopping_lists/screens/share_list_screen.dart';
 
 class ShoppingListApp extends StatelessWidget {
   const ShoppingListApp({super.key});
@@ -44,6 +45,7 @@ class ShoppingListApp extends StatelessWidget {
           AppRoutes.home: (_) => const HomeScreen(),
           AppRoutes.createList: (_) => const CreateListScreen(),
           AppRoutes.listDetail: (_) => const ListDetailScreen(),
+          AppRoutes.shareList: (_) => const ShareListScreen(),
           AppRoutes.profile: (_) => const ProfileScreen(),
         },
       ),

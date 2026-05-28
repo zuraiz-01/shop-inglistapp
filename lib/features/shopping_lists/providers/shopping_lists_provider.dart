@@ -229,6 +229,23 @@ class ShoppingListsProvider extends ChangeNotifier {
     });
   }
 
+  Future<void> shareListByEmail({
+    required String listId,
+    required String email,
+    required String permission,
+  }) async {
+    await _runAction(() async {
+      final user = _requireCurrentUser();
+
+      await _shoppingListService.shareShoppingListByEmail(
+        listId: listId,
+        currentUserId: user.uid,
+        email: email,
+        permission: permission,
+      );
+    });
+  }
+
   void clearError() {
     if (_errorMessage == null) {
       return;
