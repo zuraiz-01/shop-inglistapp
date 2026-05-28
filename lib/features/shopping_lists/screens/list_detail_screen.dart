@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../auth/providers/auth_provider.dart';
 import '../models/shopping_item_model.dart';
 import '../models/shopping_list_model.dart';
 import '../providers/shopping_lists_provider.dart';
+import '../widgets/add_edit_item_bottom_sheet.dart';
 
 class ListDetailScreen extends StatefulWidget {
   const ListDetailScreen({super.key});
@@ -107,9 +107,8 @@ class _ListDetailScreenState extends State<ListDetailScreen> {
                     isLoading: provider.isLoading,
                     errorMessage: provider.errorMessage,
                     onClearError: provider.clearError,
-                    onAddItem: () => _showItemSheet(provider, list.id),
-                    onEditItem: (item) =>
-                        _showItemSheet(provider, list.id, item: item),
+                    onAddItem: () => _showItemSheet(list.id),
+                    onEditItem: (item) => _showItemSheet(list.id, item: item),
                     onDeleteItem: (item) =>
                         _confirmDeleteItem(provider, list.id, item),
                     onToggleItem: (item) => provider.toggleItemCompleted(
@@ -122,7 +121,7 @@ class _ListDetailScreenState extends State<ListDetailScreen> {
           floatingActionButton: listId == null
               ? null
               : FloatingActionButton.extended(
-                  onPressed: () => _showItemSheet(provider, listId),
+                  onPressed: () => _showItemSheet(listId),
                   icon: const Icon(Icons.add),
                   label: const Text('Add item'),
                 ),
@@ -151,40 +150,15 @@ class _ListDetailScreenState extends State<ListDetailScreen> {
     return null;
   }
 
-  Future<void> _showItemSheet(
-    ShoppingListsProvider provider,
-    String listId, {
-    ShoppingItemModel? item,
-  }) async {
-    final authProvider = context.read<AuthProvider>();
-    final createdBy = authProvider.currentUser?.uid ?? item?.createdBy ?? '';
-
-    final savedItem = await showModalBottomSheet<ShoppingItemModel>(
+  Future<void> _showItemSheet(String listId, {ShoppingItemModel? item}) async {
+    await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
       builder: (context) {
-        return _ItemFormSheet(listId: listId, createdBy: createdBy, item: item);
+        return AddEditItemBottomSheet(listId: listId, item: item);
       },
     );
-
-    if (!mounted || savedItem == null) {
-      return;
-    }
-
-    if (item == null) {
-      await provider.addItem(listId, savedItem);
-    } else {
-      await provider.updateItem(listId, savedItem);
-    }
-
-    if (!mounted) {
-      return;
-    }
-
-    if (provider.errorMessage != null) {
-      _showSnackBar(provider.errorMessage!);
-    }
   }
 
   Future<void> _confirmDeleteItem(
@@ -556,268 +530,6 @@ class _ItemMetaChip extends StatelessWidget {
         ],
       ),
     );
-  }
-}
-
-class _ItemFormSheet extends StatefulWidget {
-  const _ItemFormSheet({
-    required this.listId,
-    required this.createdBy,
-    this.item,
-  });
-
-  final String listId;
-  final String createdBy;
-  final ShoppingItemModel? item;
-
-  @override
-  State<_ItemFormSheet> createState() => _ItemFormSheetState();
-}
-
-class _ItemFormSheetState extends State<_ItemFormSheet> {
-  final _formKey = GlobalKey<FormState>();
-  late final TextEditingController _nameController;
-  late final TextEditingController _quantityController;
-  late final TextEditingController _unitController;
-  late final TextEditingController _priceController;
-  late final TextEditingController _categoryController;
-  late final TextEditingController _notesController;
-
-  @override
-  void initState() {
-    super.initState();
-
-    final item = widget.item;
-    _nameController = TextEditingController(text: item?.name ?? '');
-    _quantityController = TextEditingController(
-      text: item == null ? '1' : _formatNumber(item.quantity),
-    );
-    _unitController = TextEditingController(text: item?.unit ?? 'pcs');
-    _priceController = TextEditingController(
-      text: item?.price == null ? '' : _formatNumber(item!.price!),
-    );
-    _categoryController = TextEditingController(text: item?.category ?? '');
-    _notesController = TextEditingController(text: item?.notes ?? '');
-  }
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _quantityController.dispose();
-    _unitController.dispose();
-    _priceController.dispose();
-    _categoryController.dispose();
-    _notesController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Padding(
-      padding: EdgeInsets.fromLTRB(20, 16, 20, bottomInset + 20),
-      child: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      widget.item == null ? 'Add item' : 'Edit item',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close),
-                    tooltip: 'Close',
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _nameController,
-                textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(
-                  labelText: 'Item name',
-                  prefixIcon: Icon(Icons.shopping_bag_outlined),
-                ),
-                validator: _requiredValidator('Item name is required.'),
-              ),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _quantityController,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      textInputAction: TextInputAction.next,
-                      decoration: const InputDecoration(
-                        labelText: 'Quantity',
-                        prefixIcon: Icon(Icons.scale_outlined),
-                      ),
-                      validator: _validateQuantity,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _unitController,
-                      textInputAction: TextInputAction.next,
-                      decoration: const InputDecoration(
-                        labelText: 'Unit',
-                        prefixIcon: Icon(Icons.straighten),
-                      ),
-                      validator: _requiredValidator('Unit is required.'),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              TextFormField(
-                controller: _priceController,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(
-                  labelText: 'Price',
-                  hintText: 'Optional',
-                  prefixIcon: Icon(Icons.attach_money),
-                ),
-                validator: _validateOptionalPrice,
-              ),
-              const SizedBox(height: 14),
-              TextFormField(
-                controller: _categoryController,
-                textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(
-                  labelText: 'Category',
-                  hintText: 'Optional',
-                  prefixIcon: Icon(Icons.category_outlined),
-                ),
-              ),
-              const SizedBox(height: 14),
-              TextFormField(
-                controller: _notesController,
-                minLines: 2,
-                maxLines: 4,
-                decoration: const InputDecoration(
-                  labelText: 'Notes',
-                  hintText: 'Optional',
-                  alignLabelWithHint: true,
-                  prefixIcon: Icon(Icons.notes_outlined),
-                ),
-              ),
-              const SizedBox(height: 20),
-              FilledButton(
-                onPressed: _save,
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size.fromHeight(48),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: Text(widget.item == null ? 'Add item' : 'Save changes'),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Quantity and unit are used to keep list totals readable.',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _save() {
-    if (!(_formKey.currentState?.validate() ?? false)) {
-      return;
-    }
-
-    final now = DateTime.now();
-    final existingItem = widget.item;
-    final item = ShoppingItemModel(
-      id: existingItem?.id ?? '',
-      listId: widget.listId,
-      name: _nameController.text.trim(),
-      quantity: double.parse(_quantityController.text.trim()),
-      unit: _unitController.text.trim(),
-      price: _nullableDouble(_priceController.text),
-      category: _emptyToNull(_categoryController.text),
-      notes: _emptyToNull(_notesController.text),
-      isCompleted: existingItem?.isCompleted ?? false,
-      createdBy: existingItem?.createdBy ?? widget.createdBy,
-      createdAt: existingItem?.createdAt ?? now,
-      updatedAt: now,
-    );
-
-    Navigator.pop(context, item);
-  }
-
-  String? Function(String?) _requiredValidator(String message) {
-    return (value) {
-      if ((value?.trim() ?? '').isEmpty) {
-        return message;
-      }
-
-      return null;
-    };
-  }
-
-  String? _validateQuantity(String? value) {
-    final quantity = double.tryParse(value?.trim() ?? '');
-    if (quantity == null || quantity <= 0) {
-      return 'Enter a valid quantity.';
-    }
-
-    return null;
-  }
-
-  String? _validateOptionalPrice(String? value) {
-    final text = value?.trim() ?? '';
-    if (text.isEmpty) {
-      return null;
-    }
-
-    final price = double.tryParse(text);
-    if (price == null || price < 0) {
-      return 'Enter a valid price.';
-    }
-
-    return null;
-  }
-
-  double? _nullableDouble(String value) {
-    final text = value.trim();
-    if (text.isEmpty) {
-      return null;
-    }
-
-    return double.parse(text);
-  }
-
-  String? _emptyToNull(String value) {
-    final text = value.trim();
-    return text.isEmpty ? null : text;
-  }
-
-  String _formatNumber(double value) {
-    return value % 1 == 0 ? value.toInt().toString() : value.toString();
   }
 }
 
