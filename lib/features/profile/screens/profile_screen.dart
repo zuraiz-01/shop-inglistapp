@@ -54,52 +54,10 @@ class ProfileScreen extends StatelessWidget {
     required AuthProvider authProvider,
     required ProfileProvider profileProvider,
   }) async {
-    final controller = TextEditingController(text: user.name);
-    final formKey = GlobalKey<FormState>();
-
     final updatedName = await showDialog<String>(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Edit Profile'),
-          content: Form(
-            key: formKey,
-            child: TextFormField(
-              controller: controller,
-              autofocus: true,
-              textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(
-                labelText: 'Display name',
-                prefixIcon: Icon(Icons.person_outline),
-              ),
-              validator: (value) {
-                if ((value?.trim() ?? '').isEmpty) {
-                  return 'Display name is required.';
-                }
-
-                return null;
-              },
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () {
-                if (formKey.currentState?.validate() ?? false) {
-                  Navigator.pop(context, controller.text.trim());
-                }
-              },
-              child: const Text('Save'),
-            ),
-          ],
-        );
-      },
+      builder: (context) => _EditProfileDialog(initialName: user.name),
     );
-
-    controller.dispose();
 
     if (updatedName == null || updatedName == user.name) {
       return;
@@ -149,6 +107,72 @@ class ProfileScreen extends StatelessWidget {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+
+class _EditProfileDialog extends StatefulWidget {
+  const _EditProfileDialog({required this.initialName});
+
+  final String initialName;
+
+  @override
+  State<_EditProfileDialog> createState() => _EditProfileDialogState();
+}
+
+class _EditProfileDialogState extends State<_EditProfileDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialName);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Edit Profile'),
+      content: Form(
+        key: _formKey,
+        child: TextFormField(
+          controller: _controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(
+            labelText: 'Display name',
+            prefixIcon: Icon(Icons.person_outline),
+          ),
+          validator: (value) {
+            if ((value?.trim() ?? '').isEmpty) {
+              return 'Display name is required.';
+            }
+
+            return null;
+          },
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () {
+            if (_formKey.currentState?.validate() ?? false) {
+              Navigator.pop(context, _controller.text.trim());
+            }
+          },
+          child: const Text('Save'),
+        ),
+      ],
+    );
   }
 }
 
