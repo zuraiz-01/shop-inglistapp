@@ -93,12 +93,16 @@ class ShoppingListService {
 
   Future<void> updateShoppingList({
     required String listId,
+    required String currentUserId,
     String? title,
     String? description,
     List<String>? members,
     Map<String, String>? memberRoles,
   }) async {
     try {
+      final list = await _getListOrThrow(listId);
+      _assertCanEditList(list, currentUserId);
+
       final updates = <String, dynamic>{
         'updatedAt': FieldValue.serverTimestamp(),
       };
@@ -173,11 +177,7 @@ class ShoppingListService {
         }
 
         final list = ShoppingListModel.fromFirestore(listSnapshot);
-        if (list.ownerId != currentUserId) {
-          throw const ShoppingListServiceException(
-            'Only the list owner can share this shopping list.',
-          );
-        }
+        _assertCanManageMembers(list, currentUserId);
 
         if (list.members.contains(targetUid)) {
           throw const ShoppingListServiceException(
@@ -256,7 +256,7 @@ class ShoppingListService {
         }
 
         final list = ShoppingListModel.fromFirestore(listSnapshot);
-        _assertOwnerCanManageMember(
+        _assertCanManageSpecificMember(
           list: list,
           currentUserId: currentUserId,
           memberId: memberId,
@@ -295,7 +295,7 @@ class ShoppingListService {
         }
 
         final list = ShoppingListModel.fromFirestore(listSnapshot);
-        _assertOwnerCanManageMember(
+        _assertCanManageSpecificMember(
           list: list,
           currentUserId: currentUserId,
           memberId: memberId,
@@ -331,11 +331,7 @@ class ShoppingListService {
       }
 
       final list = ShoppingListModel.fromFirestore(listSnapshot);
-      if (list.ownerId != currentUserId) {
-        throw const ShoppingListServiceException(
-          'Only the list owner can delete this shopping list.',
-        );
-      }
+      _assertCanDeleteList(list, currentUserId);
 
       final itemsSnapshot = await _itemsCollection(listId).get();
       final writes = <DocumentReference<Map<String, dynamic>>>[
@@ -355,16 +351,12 @@ class ShoppingListService {
     }
   }
 
-  void _assertOwnerCanManageMember({
+  void _assertCanManageSpecificMember({
     required ShoppingListModel list,
     required String currentUserId,
     required String memberId,
   }) {
-    if (list.ownerId != currentUserId) {
-      throw const ShoppingListServiceException(
-        'Only the list owner can manage members.',
-      );
-    }
+    _assertCanManageMembers(list, currentUserId);
 
     if (memberId == list.ownerId) {
       throw const ShoppingListServiceException(
@@ -381,6 +373,7 @@ class ShoppingListService {
 
   Future<ShoppingItemModel> addItemToList({
     required String listId,
+    required String currentUserId,
     required String name,
     required double quantity,
     required String unit,
@@ -402,6 +395,8 @@ class ShoppingListService {
             'Shopping list was not found.',
           );
         }
+        final list = ShoppingListModel.fromFirestore(listSnapshot);
+        _assertCanEditItems(list, currentUserId);
 
         transaction.set(itemRef, {
           'listId': listId,
@@ -470,6 +465,7 @@ class ShoppingListService {
 
   Future<void> updateItem({
     required String listId,
+    required String currentUserId,
     required String itemId,
     String? name,
     double? quantity,
@@ -484,6 +480,15 @@ class ShoppingListService {
       final itemRef = _itemsCollection(listId).doc(itemId);
 
       await _firestore.runTransaction((transaction) async {
+        final listSnapshot = await transaction.get(listRef);
+        if (!listSnapshot.exists) {
+          throw const ShoppingListServiceException(
+            'Shopping list was not found.',
+          );
+        }
+        final list = ShoppingListModel.fromFirestore(listSnapshot);
+        _assertCanEditItems(list, currentUserId);
+
         final itemSnapshot = await transaction.get(itemRef);
         if (!itemSnapshot.exists) {
           throw const ShoppingListServiceException(
@@ -553,6 +558,7 @@ class ShoppingListService {
 
   Future<void> toggleItemCompleted({
     required String listId,
+    required String currentUserId,
     required String itemId,
   }) async {
     try {
@@ -560,6 +566,15 @@ class ShoppingListService {
       final itemRef = _itemsCollection(listId).doc(itemId);
 
       await _firestore.runTransaction((transaction) async {
+        final listSnapshot = await transaction.get(listRef);
+        if (!listSnapshot.exists) {
+          throw const ShoppingListServiceException(
+            'Shopping list was not found.',
+          );
+        }
+        final list = ShoppingListModel.fromFirestore(listSnapshot);
+        _assertCanEditItems(list, currentUserId);
+
         final itemSnapshot = await transaction.get(itemRef);
         if (!itemSnapshot.exists) {
           throw const ShoppingListServiceException(
@@ -595,6 +610,7 @@ class ShoppingListService {
 
   Future<void> deleteItem({
     required String listId,
+    required String currentUserId,
     required String itemId,
   }) async {
     try {
@@ -602,6 +618,15 @@ class ShoppingListService {
       final itemRef = _itemsCollection(listId).doc(itemId);
 
       await _firestore.runTransaction((transaction) async {
+        final listSnapshot = await transaction.get(listRef);
+        if (!listSnapshot.exists) {
+          throw const ShoppingListServiceException(
+            'Shopping list was not found.',
+          );
+        }
+        final list = ShoppingListModel.fromFirestore(listSnapshot);
+        _assertCanEditItems(list, currentUserId);
+
         final itemSnapshot = await transaction.get(itemRef);
         if (!itemSnapshot.exists) {
           throw const ShoppingListServiceException(
@@ -671,6 +696,47 @@ class ShoppingListService {
 
     final doc = snapshot.docs.first;
     return {...doc.data(), 'uid': doc.data()['uid'] as String? ?? doc.id};
+  }
+
+  Future<ShoppingListModel> _getListOrThrow(String listId) async {
+    final listSnapshot = await _listsCollection.doc(listId).get();
+    if (!listSnapshot.exists) {
+      throw const ShoppingListServiceException('Shopping list was not found.');
+    }
+
+    return ShoppingListModel.fromFirestore(listSnapshot);
+  }
+
+  void _assertCanEditItems(ShoppingListModel list, String currentUserId) {
+    if (!canEditItems(list, currentUserId)) {
+      throw const ShoppingListServiceException(
+        'You do not have permission to edit items in this list.',
+      );
+    }
+  }
+
+  void _assertCanManageMembers(ShoppingListModel list, String currentUserId) {
+    if (!canManageMembers(list, currentUserId)) {
+      throw const ShoppingListServiceException(
+        'Only the list owner can share this list or manage members.',
+      );
+    }
+  }
+
+  void _assertCanDeleteList(ShoppingListModel list, String currentUserId) {
+    if (!canDeleteList(list, currentUserId)) {
+      throw const ShoppingListServiceException(
+        'Only the list owner can delete this shopping list.',
+      );
+    }
+  }
+
+  void _assertCanEditList(ShoppingListModel list, String currentUserId) {
+    if (!isOwner(list, currentUserId)) {
+      throw const ShoppingListServiceException(
+        'Only the list owner can edit this shopping list.',
+      );
+    }
   }
 
   Future<void> _commitDeleteBatches(

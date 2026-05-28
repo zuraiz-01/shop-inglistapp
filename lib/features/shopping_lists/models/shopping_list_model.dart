@@ -112,3 +112,33 @@ class ShoppingListModel {
     return DateTime.fromMillisecondsSinceEpoch(0);
   }
 }
+
+bool isOwner(ShoppingListModel list, String? uid) {
+  return uid != null &&
+      list.members.contains(uid) &&
+      list.memberRoles[uid] == 'owner';
+}
+
+bool isEditor(ShoppingListModel list, String? uid) {
+  return uid != null &&
+      list.members.contains(uid) &&
+      list.memberRoles[uid] == 'editor';
+}
+
+bool isViewer(ShoppingListModel list, String? uid) {
+  return uid != null &&
+      list.members.contains(uid) &&
+      list.memberRoles[uid] == 'viewer';
+}
+
+bool canEditItems(ShoppingListModel list, String? uid) {
+  return isOwner(list, uid) || isEditor(list, uid);
+}
+
+bool canManageMembers(ShoppingListModel list, String? uid) {
+  return isOwner(list, uid);
+}
+
+bool canDeleteList(ShoppingListModel list, String? uid) {
+  return isOwner(list, uid);
+}

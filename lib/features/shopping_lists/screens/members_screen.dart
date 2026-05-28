@@ -56,7 +56,7 @@ class _MembersScreenState extends State<MembersScreen> {
   Widget build(BuildContext context) {
     final currentUser = context.watch<AuthProvider>().currentUser;
     final list = _list;
-    final isOwner = list != null && currentUser?.uid == list.ownerId;
+    final canManage = list != null && canManageMembers(list, currentUser?.uid);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Members')),
@@ -97,7 +97,7 @@ class _MembersScreenState extends State<MembersScreen> {
                 final member = provider.members[index];
                 return _MemberCard(
                   member: member,
-                  canManage: isOwner && !member.isOwner,
+                  canManage: canManage && !member.isOwner,
                   isBusy: provider.isLoading,
                   onRoleChanged: (role) => _changeRole(
                     provider: provider,

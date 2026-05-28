@@ -128,12 +128,12 @@ class ShoppingListsProvider extends ChangeNotifier {
 
   Future<void> addItem(String listId, ShoppingItemModel item) async {
     await _runAction(() async {
-      final createdBy = item.createdBy.isNotEmpty
-          ? item.createdBy
-          : _requireCurrentUser().uid;
+      final user = _requireCurrentUser();
+      final createdBy = item.createdBy.isNotEmpty ? item.createdBy : user.uid;
 
       final newItem = await _shoppingListService.addItemToList(
         listId: listId,
+        currentUserId: user.uid,
         name: item.name,
         quantity: item.quantity,
         unit: item.unit,
@@ -152,8 +152,11 @@ class ShoppingListsProvider extends ChangeNotifier {
 
   Future<void> updateItem(String listId, ShoppingItemModel item) async {
     await _runAction(() async {
+      final user = _requireCurrentUser();
+
       await _shoppingListService.updateItem(
         listId: listId,
+        currentUserId: user.uid,
         itemId: item.id,
         name: item.name,
         quantity: item.quantity,
@@ -176,10 +179,12 @@ class ShoppingListsProvider extends ChangeNotifier {
     bool currentValue,
   ) async {
     await _runAction(() async {
+      final user = _requireCurrentUser();
       final nextValue = !currentValue;
 
       await _shoppingListService.updateItem(
         listId: listId,
+        currentUserId: user.uid,
         itemId: itemId,
         isCompleted: nextValue,
       );
@@ -209,7 +214,13 @@ class ShoppingListsProvider extends ChangeNotifier {
 
   Future<void> deleteItem(String listId, String itemId) async {
     await _runAction(() async {
-      await _shoppingListService.deleteItem(listId: listId, itemId: itemId);
+      final user = _requireCurrentUser();
+
+      await _shoppingListService.deleteItem(
+        listId: listId,
+        currentUserId: user.uid,
+        itemId: itemId,
+      );
       _items = _items.where((item) => item.id != itemId).toList();
     });
   }

@@ -61,7 +61,7 @@ class _ShareListScreenState extends State<ShareListScreen> {
     final colorScheme = Theme.of(context).colorScheme;
     final currentUser = context.watch<AuthProvider>().currentUser;
     final list = _list;
-    final isOwner = list != null && currentUser?.uid == list.ownerId;
+    final canShare = list != null && canManageMembers(list, currentUser?.uid);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Share List')),
@@ -81,7 +81,7 @@ class _ShareListScreenState extends State<ShareListScreen> {
                     );
                   }
 
-                  if (!isOwner) {
+                  if (!canShare) {
                     return _MessageState(
                       icon: Icons.lock_outline,
                       title: 'Owner access required',

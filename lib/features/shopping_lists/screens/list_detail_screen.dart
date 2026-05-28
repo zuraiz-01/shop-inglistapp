@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/constants/app_routes.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../models/shopping_item_model.dart';
 import '../models/shopping_list_model.dart';
 import '../providers/shopping_lists_provider.dart';
@@ -32,8 +33,7 @@ class _ListDetailScreenState extends State<ListDetailScreen> {
 
     if (args is ShoppingListModel) {
       _activeListId = args.id;
-      provider.selectList(args);
-      provider.listenToItems(args.id);
+      _selectListAfterBuild(args);
       return;
     }
 
@@ -45,42 +45,67 @@ class _ListDetailScreenState extends State<ListDetailScreen> {
           .firstWhere((list) => list != null, orElse: () => null);
 
       if (matchingList != null) {
-        provider.selectList(matchingList);
+        _selectListAfterBuild(matchingList);
+      } else {
+        _listenToItemsAfterBuild(args);
       }
-
-      provider.listenToItems(args);
       return;
     }
 
     final selectedList = provider.selectedList;
     if (selectedList != null) {
       _activeListId = selectedList.id;
-      provider.listenToItems(selectedList.id);
+      _listenToItemsAfterBuild(selectedList.id);
     }
+  }
+
+  void _selectListAfterBuild(ShoppingListModel list) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+
+      final provider = context.read<ShoppingListsProvider>();
+      provider.selectList(list);
+      provider.listenToItems(list.id);
+    });
+  }
+
+  void _listenToItemsAfterBuild(String listId) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+
+      context.read<ShoppingListsProvider>().listenToItems(listId);
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Consumer<ShoppingListsProvider>(
       builder: (context, provider, _) {
+        final currentUserId = context.watch<AuthProvider>().currentUser?.uid;
         final list = _currentList(provider);
         final listId = list?.id ?? _activeListId;
+        final canEdit = list != null && canEditItems(list, currentUserId);
+        final canManage = list != null && canManageMembers(list, currentUserId);
+        final canDelete = list != null && canDeleteList(list, currentUserId);
 
         return Scaffold(
           appBar: AppBar(
             title: Text(list?.title ?? 'Shopping List'),
             actions: [
-              IconButton(
-                onPressed: list == null
-                    ? null
-                    : () => Navigator.pushNamed(
-                        context,
-                        AppRoutes.shareList,
-                        arguments: list,
-                      ),
-                icon: const Icon(Icons.ios_share_outlined),
-                tooltip: 'Share list',
-              ),
+              if (canManage)
+                IconButton(
+                  onPressed: () => Navigator.pushNamed(
+                    context,
+                    AppRoutes.shareList,
+                    arguments: list,
+                  ),
+                  icon: const Icon(Icons.ios_share_outlined),
+                  tooltip: 'Share list',
+                ),
               IconButton(
                 onPressed: list == null
                     ? null
@@ -92,19 +117,20 @@ class _ListDetailScreenState extends State<ListDetailScreen> {
                 icon: const Icon(Icons.group_outlined),
                 tooltip: 'Members',
               ),
-              PopupMenuButton<_ListAction>(
-                onSelected: (action) {
-                  if (action == _ListAction.delete && list != null) {
-                    _confirmDeleteList(provider, list);
-                  }
-                },
-                itemBuilder: (context) => const [
-                  PopupMenuItem(
-                    value: _ListAction.delete,
-                    child: Text('Delete list'),
-                  ),
-                ],
-              ),
+              if (canDelete)
+                PopupMenuButton<_ListAction>(
+                  onSelected: (action) {
+                    if (action == _ListAction.delete) {
+                      _confirmDeleteList(provider, list);
+                    }
+                  },
+                  itemBuilder: (context) => const [
+                    PopupMenuItem(
+                      value: _ListAction.delete,
+                      child: Text('Delete list'),
+                    ),
+                  ],
+                ),
             ],
           ),
           body: SafeArea(
@@ -115,6 +141,7 @@ class _ListDetailScreenState extends State<ListDetailScreen> {
                     items: provider.items,
                     isLoading: provider.isLoading,
                     errorMessage: provider.errorMessage,
+                    canEditItems: canEdit,
                     onClearError: provider.clearError,
                     onAddItem: () => _showItemSheet(list.id),
                     onEditItem: (item) => _showItemSheet(list.id, item: item),
@@ -127,7 +154,7 @@ class _ListDetailScreenState extends State<ListDetailScreen> {
                     ),
                   ),
           ),
-          floatingActionButton: listId == null
+          floatingActionButton: listId == null || !canEdit
               ? null
               : FloatingActionButton.extended(
                   onPressed: () => _showItemSheet(listId),
@@ -265,6 +292,7 @@ class _ListDetailBody extends StatelessWidget {
     required this.items,
     required this.isLoading,
     required this.errorMessage,
+    required this.canEditItems,
     required this.onClearError,
     required this.onAddItem,
     required this.onEditItem,
@@ -276,6 +304,7 @@ class _ListDetailBody extends StatelessWidget {
   final List<ShoppingItemModel> items;
   final bool isLoading;
   final String? errorMessage;
+  final bool canEditItems;
   final VoidCallback onClearError;
   final VoidCallback onAddItem;
   final ValueChanged<ShoppingItemModel> onEditItem;
@@ -310,7 +339,10 @@ class _ListDetailBody extends StatelessWidget {
         else if (items.isEmpty)
           SliverFillRemaining(
             hasScrollBody: false,
-            child: _EmptyItemsState(onAddItem: onAddItem),
+            child: _EmptyItemsState(
+              canEditItems: canEditItems,
+              onAddItem: onAddItem,
+            ),
           )
         else
           SliverPadding(
@@ -323,6 +355,7 @@ class _ListDetailBody extends StatelessWidget {
                 return _ShoppingItemTile(
                   item: item,
                   colorScheme: colorScheme,
+                  canEdit: canEditItems,
                   onToggle: () => onToggleItem(item),
                   onEdit: () => onEditItem(item),
                   onDelete: () => onDeleteItem(item),
@@ -402,6 +435,7 @@ class _ShoppingItemTile extends StatelessWidget {
   const _ShoppingItemTile({
     required this.item,
     required this.colorScheme,
+    required this.canEdit,
     required this.onToggle,
     required this.onEdit,
     required this.onDelete,
@@ -409,6 +443,7 @@ class _ShoppingItemTile extends StatelessWidget {
 
   final ShoppingItemModel item;
   final ColorScheme colorScheme;
+  final bool canEdit;
   final VoidCallback onToggle;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
@@ -423,7 +458,10 @@ class _ShoppingItemTile extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Checkbox(value: item.isCompleted, onChanged: (_) => onToggle()),
+            Checkbox(
+              value: item.isCompleted,
+              onChanged: canEdit ? (_) => onToggle() : null,
+            ),
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.only(top: 8, bottom: 8),
@@ -473,20 +511,24 @@ class _ShoppingItemTile extends StatelessWidget {
                 ),
               ),
             ),
-            PopupMenuButton<_ItemAction>(
-              onSelected: (action) {
-                switch (action) {
-                  case _ItemAction.edit:
-                    onEdit();
-                  case _ItemAction.delete:
-                    onDelete();
-                }
-              },
-              itemBuilder: (context) => const [
-                PopupMenuItem(value: _ItemAction.edit, child: Text('Edit')),
-                PopupMenuItem(value: _ItemAction.delete, child: Text('Delete')),
-              ],
-            ),
+            if (canEdit)
+              PopupMenuButton<_ItemAction>(
+                onSelected: (action) {
+                  switch (action) {
+                    case _ItemAction.edit:
+                      onEdit();
+                    case _ItemAction.delete:
+                      onDelete();
+                  }
+                },
+                itemBuilder: (context) => const [
+                  PopupMenuItem(value: _ItemAction.edit, child: Text('Edit')),
+                  PopupMenuItem(
+                    value: _ItemAction.delete,
+                    child: Text('Delete'),
+                  ),
+                ],
+              ),
           ],
         ),
       ),
@@ -539,8 +581,9 @@ class _ItemMetaChip extends StatelessWidget {
 }
 
 class _EmptyItemsState extends StatelessWidget {
-  const _EmptyItemsState({required this.onAddItem});
+  const _EmptyItemsState({required this.canEditItems, required this.onAddItem});
 
+  final bool canEditItems;
   final VoidCallback onAddItem;
 
   @override
@@ -567,18 +610,22 @@ class _EmptyItemsState extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Add your first item to start tracking this shopping list.',
+              canEditItems
+                  ? 'Add your first item to start tracking this shopping list.'
+                  : 'No items have been added to this shopping list.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: colorScheme.onSurfaceVariant,
               ),
             ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: onAddItem,
-              icon: const Icon(Icons.add),
-              label: const Text('Add item'),
-            ),
+            if (canEditItems) ...[
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: onAddItem,
+                icon: const Icon(Icons.add),
+                label: const Text('Add item'),
+              ),
+            ],
           ],
         ),
       ),

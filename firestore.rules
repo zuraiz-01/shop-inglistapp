@@ -18,20 +18,28 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid in listData(listId).members;
     }
 
-    function listRoleFromData(data) {
-      return data.memberRoles[request.auth.uid];
+    function isOwner(list, uid) {
+      return uid in list.members && list.memberRoles[uid] == 'owner';
     }
 
-    function isOwnerFromData(data) {
-      return isSignedIn() && listRoleFromData(data) == 'owner';
+    function isEditor(list, uid) {
+      return uid in list.members && list.memberRoles[uid] == 'editor';
     }
 
-    function canEditFromData(data) {
-      return isSignedIn() && listRoleFromData(data) in ['owner', 'editor'];
+    function isViewer(list, uid) {
+      return uid in list.members && list.memberRoles[uid] == 'viewer';
     }
 
-    function canEditList(listId) {
-      return canEditFromData(listData(listId));
+    function canEditItems(list, uid) {
+      return isOwner(list, uid) || isEditor(list, uid);
+    }
+
+    function canManageMembers(list, uid) {
+      return isOwner(list, uid);
+    }
+
+    function canDeleteList(list, uid) {
+      return isOwner(list, uid);
     }
 
     function keepsListOwnerStable() {
@@ -39,14 +47,27 @@ service cloud.firestore {
         && request.resource.data.ownerName == resource.data.ownerName;
     }
 
-    function onlyUpdatesListContentAndCounts() {
+    function keepsListMembersStable() {
+      return request.resource.data.members == resource.data.members
+        && request.resource.data.memberRoles == resource.data.memberRoles;
+    }
+
+    function onlyUpdatesItemCounts() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-        'title',
-        'description',
         'totalItems',
         'completedItems',
         'updatedAt',
       ]);
+    }
+
+    function hasValidMemberData(data) {
+      return data.members is list
+        && data.memberRoles is map
+        && data.ownerId in data.members
+        && data.memberRoles[data.ownerId] == 'owner'
+        && data.memberRoles.keys().hasAll(data.members)
+        && data.memberRoles.keys().hasOnly(data.members)
+        && data.memberRoles.values().hasOnly(['owner', 'editor', 'viewer']);
     }
 
     match /users/{userId} {
@@ -67,20 +88,30 @@ service cloud.firestore {
       allow create: if isSignedIn()
         && request.resource.data.ownerId == request.auth.uid
         && request.auth.uid in request.resource.data.members
-        && request.resource.data.memberRoles[request.auth.uid] == 'owner';
+        && request.resource.data.memberRoles[request.auth.uid] == 'owner'
+        && hasValidMemberData(request.resource.data);
 
-      allow update: if isOwnerFromData(resource.data)
-        || (
-          canEditFromData(resource.data)
+      allow update: if (
+          isSignedIn()
+          && canManageMembers(resource.data, request.auth.uid)
           && keepsListOwnerStable()
-          && onlyUpdatesListContentAndCounts()
+        && hasValidMemberData(request.resource.data)
+        )
+        || (
+          isSignedIn()
+          && canEditItems(resource.data, request.auth.uid)
+          && keepsListOwnerStable()
+          && keepsListMembersStable()
+          && onlyUpdatesItemCounts()
         );
 
-      allow delete: if isOwnerFromData(resource.data);
+      allow delete: if isSignedIn()
+        && canDeleteList(resource.data, request.auth.uid);
 
       match /items/{itemId} {
         allow read: if isListMember(listId);
-        allow create, update, delete: if canEditList(listId);
+        allow create, update, delete: if isSignedIn()
+          && canEditItems(listData(listId), request.auth.uid);
       }
     }
   }
